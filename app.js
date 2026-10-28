@@ -195,6 +195,7 @@ async function loadGifts() {
     render();
   } catch (error) {
     console.error("NFT RENT catalog error:", error);
+$("#status").textContent = "Ошибка: " + String(error);
     $("#catalog").innerHTML = `
       <div class="empty-state">
         <p>Не удалось загрузить каталог.</p>
