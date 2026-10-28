@@ -1,38 +1,37 @@
 
-const API = "https://api.changes.tg";
-const PROXY = "https://proxy.cors.dev/";
+const API = "https://nft-rent-api.dragonpej5.workers.dev";
 
-const $ = (s) => document.querySelector(s);
+const $ = (selector) => document.querySelector(selector);
+
 let gifts = [];
 let activeFilter = "all";
 
 const esc = (value) =>
   String(value ?? "").replace(/[&<>"']/g, (c) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;",
-    '"': "&quot;", "'": "&#39;"
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
   })[c]);
 
-async function getJSON(url) {
-  let error;
-
-  for (const address of [
-    url,
-    PROXY + url
-  ]) {
-    try {
-      const response = await fetch(address, {
-        headers: { Accept: "application/json" }
-      });
-      if (!response.ok) throw new Error("HTTP " + response.status);
-      const data = await response.json();
-      if (data && data.error) throw new Error(data.message || data.error);
-      return data;
-    } catch (e) {
-      error = e;
+async function requestJSON(url, options = {}) {
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      Accept: "application/json",
+      ...(options.body ? { "Content-Type": "application/json" } : {}),
+      ...options.headers
     }
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error || `Ошибка HTTP ${response.status}`);
   }
 
-  throw error || new Error("Не удалось загрузить API");
+  return data;
 }
 
 function normalize(item) {
@@ -50,29 +49,36 @@ function normalize(item) {
 }
 
 function imageURL(gift) {
-  return `${API}/original/${encodeURIComponent(gift.id || gift.name)}.png?size=256`;
+  return `https://api.changes.tg/original/${encodeURIComponent(
+    gift.id || gift.name
+  )}.png?size=256`;
 }
 
 function showError(message) {
-  $("#status").textContent = "Ошибка";
-  $("#error-banner").classList.remove("hidden");
-  $("#error-banner").textContent =
-    message + " Если каталог не открылся, обнови страницу чуть позже.";
+  const banner = $("#error-banner");
+  if (!banner) return;
+  banner.textContent = message;
+  banner.classList.remove("hidden");
 }
 
 function render() {
-  const query = ($("#search").value || "").trim().toLowerCase();
+  const query = ($("#search")?.value || "").trim().toLowerCase();
 
   const filtered = gifts.filter((gift) => {
-    const matches = gift.name.toLowerCase().includes(query);
-    const isUpgradable = gift.upgradable !== false;
-    const isLimited = gift.limited === true ||
-      gift.availability === "limited";
+    if (!gift.name.toLowerCase().includes(query)) return false;
+    if (activeFilter === "upgradable" && gift.upgradable === false) {
+      return false;
+    }
 
-    if (activeFilter === "upgradable" && !isUpgradable) return false;
-    if (activeFilter === "limited" && !isLimited) return false;
+    if (
+      activeFilter === "limited" &&
+      gift.limited !== true &&
+      gift.availability !== "limited"
+    ) {
+      return false;
+    }
 
-    return matches;
+    return true;
   });
 
   $("#status").textContent = `${filtered.length} найдено`;
@@ -100,7 +106,7 @@ function render() {
         <div class="gift-description">Коллекционный подарок Telegram</div>
         <div class="gift-meta">
           <span class="gift-price">Уточнить цену</span>
-          <span class="gift-badge">Каталог</span>
+          <span class="gift-badge">NFT</span>
         </div>
         <button class="gift-rent-btn" data-gift="${esc(gift.name)}">
           Подробнее
@@ -111,17 +117,18 @@ function render() {
 }
 
 async function openGift(name) {
-  const gift = gifts.find((g) => g.name === name);
+  const gift = gifts.find((item) => item.name === name);
   if (!gift) return;
 
   $("#modal").classList.remove("hidden");
+
   $("#modal-content").innerHTML = `
     <h2>${esc(gift.name)}</h2>
-    <p>Подарок из каталога Telegram.</p>
-    <p>Стоимость и доступность аренды уточняются у менеджера.</p>
+    <p>Оставь заявку, чтобы уточнить стоимость и доступность аренды.</p>
+
     <form id="rent-form">
       <div class="form-group">
-        <label for="rent-period">Желаемый срок аренды</label>
+        <label for="rent-period">Срок аренды</label>
         <select id="rent-period" required>
           <option value="1 день">1 день</option>
           <option value="3 дня">3 дня</option>
@@ -129,42 +136,64 @@ async function openGift(name) {
           <option value="30 дней">30 дней</option>
         </select>
       </div>
+
       <div class="form-group">
         <label for="rent-contact">Твой Telegram @username</label>
-        <input id="rent-contact" placeholder="@username" required>
+        <input
+          id="rent-contact"
+          placeholder="@username"
+          maxlength="100"
+          required
+        >
       </div>
-      <button class="primary-btn" type="submit">Создать заявку</button>
+
+      <button class="primary-btn" id="rent-submit" type="submit">
+        Создать заявку
+      </button>
     </form>
-    <p id="rent-result"></p>
+
+    <p id="rent-result" role="status"></p>
   `;
 
-  $("#rent-form").addEventListener("submit", (event) => {
+  $("#rent-form").addEventListener("submit", async (event) => {
     event.preventDefault();
 
+    const button = $("#rent-submit");
+    const result = $("#rent-result");
     const period = $("#rent-period").value;
-    const contact = $("#rent-contact").value.trim();
+    const username = $("#rent-contact").value.trim();
 
-    if (!contact) return;
-
-    const message =
-      `Здравствуйте! Хочу уточнить аренду подарка ${gift.name}. ` +
-      `Срок: ${period}. Telegram: ${contact}`;
-
-    $("#rent-result").textContent =
-      "Заявка подготовлена. Отправь её менеджеру для подтверждения.";
-
-    const tg = window.Telegram?.WebApp;
-    if (tg) {
-      tg.showPopup({
-        title: "Заявка подготовлена",
-        message: "Для оформления нужно отправить сообщение менеджеру.",
-        buttons: [{ type: "ok" }]
-      });
+    if (!username) {
+      result.textContent = "Укажи свой Telegram username.";
+      return;
     }
 
-    const manager = "GiftChangesAPI";
-    const url = `https://t.me/${manager}?text=${encodeURIComponent(message)}`;
-    window.open(url, "_blank");
+    button.disabled = true;
+    button.textContent = "Отправляем…";
+    result.textContent = "";
+
+    try {
+      const data = await requestJSON(`${API}/api/requests`, {
+        method: "POST",
+        body: JSON.stringify({
+          gift: gift.name,
+          username,
+          period
+        })
+      });
+
+      result.textContent =
+        `Заявка №${data.id} сохранена! Ожидай подтверждения менеджера.`;
+
+      button.textContent = "Заявка создана";
+    } catch (error) {
+      console.error("NFT RENT request error:", error);
+      result.textContent =
+        `Не удалось сохранить заявку: ${error.message}. Попробуй позже.`;
+
+      button.disabled = false;
+      button.textContent = "Повторить отправку";
+    }
   });
 }
 
@@ -174,62 +203,72 @@ async function loadGifts() {
     <div class="loading">
       <div class="spinner"></div>
       <p>Загружаем каталог подарков…</p>
-    </div>`;
+    </div>
+  `;
 
   try {
-    const data = await getJSON(`${API}/gifts`);
+    const data = await requestJSON(`${API}/api/gifts`);
+
     const list = Array.isArray(data)
       ? data
-      : Array.isArray(data.gifts) ? data.gifts
-      : Array.isArray(data.results) ? data.results
-      : [];
+      : Array.isArray(data.gifts)
+        ? data.gifts
+        : Array.isArray(data.results)
+          ? data.results
+          : [];
 
     gifts = list.map(normalize).filter(Boolean);
 
     if (!gifts.length) {
-      throw new Error("API вернул пустой список");
+      throw new Error("Каталог пуст");
     }
 
     $("#gift-count").textContent = gifts.length.toLocaleString("ru-RU");
-    $("#error-banner").classList.add("hidden");
+    $("#error-banner")?.classList.add("hidden");
     render();
   } catch (error) {
     console.error("NFT RENT catalog error:", error);
-$("#status").textContent = "Ошибка: " + String(error);
+
+    $("#status").textContent = "Ошибка загрузки";
     $("#catalog").innerHTML = `
       <div class="empty-state">
         <p>Не удалось загрузить каталог.</p>
-        <button class="gift-rent-btn" id="retry-load">Попробовать снова</button>
-      </div>`;
+        <button class="gift-rent-btn" id="retry-load">
+          Попробовать снова
+        </button>
+      </div>
+    `;
+
     $("#retry-load").addEventListener("click", loadGifts);
-    showError("Не удалось получить данные каталога.");
+    showError(`Ошибка каталога: ${error.message}`);
   }
 }
 
-$("#search").addEventListener("input", render);
+$("#search")?.addEventListener("input", render);
 
-$("#clear-search").addEventListener("click", () => {
+$("#clear-search")?.addEventListener("click", () => {
   $("#search").value = "";
   render();
 });
 
 document.querySelectorAll(".filter").forEach((button) => {
   button.addEventListener("click", () => {
-    document.querySelectorAll(".filter").forEach((b) =>
-      b.classList.remove("active")
+    document.querySelectorAll(".filter").forEach((item) =>
+      item.classList.remove("active")
     );
+
     button.classList.add("active");
     activeFilter = button.dataset.filter;
     render();
   });
 });
 
-$("#catalog").addEventListener("click", (event) => {
+$("#catalog")?.addEventListener("click", (event) => {
   const button = event.target.closest("[data-gift]");
   if (button) openGift(button.dataset.gift);
 });
 
-$("#modal").addEventListener("click", (event) => {
+$("#modal")?.addEventListener("click", (event) => {
   if (event.target.dataset.close === "true") {
     $("#modal").classList.add("hidden");
   }
