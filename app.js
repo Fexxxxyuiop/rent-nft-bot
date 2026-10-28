@@ -1,461 +1,242 @@
 
-(() => {
-  const API = "https://api.changes.tg";
-  const tg = window.Telegram?.WebApp;
+const API = "https://api.changes.tg";
+const PROXY = "https://api.allorigins.win/raw?url=";
 
-  if (tg) {
-    tg.ready();
-    tg.expand();
+const $ = (s) => document.querySelector(s);
+let gifts = [];
+let activeFilter = "all";
+
+const esc = (value) =>
+  String(value ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;",
+    '"': "&quot;", "'": "&#39;"
+  })[c]);
+
+async function getJSON(url) {
+  let error;
+
+  for (const address of [
+    url,
+    PROXY + encodeURIComponent(url)
+  ]) {
+    try {
+      const response = await fetch(address, {
+        headers: { Accept: "application/json" }
+      });
+      if (!response.ok) throw new Error("HTTP " + response.status);
+      const data = await response.json();
+      if (data && data.error) throw new Error(data.message || data.error);
+      return data;
+    } catch (e) {
+      error = e;
+    }
   }
 
-  const $ = (s) => document.querySelector(s);
+  throw error || new Error("Не удалось загрузить API");
+}
 
-  const catalog = $("#catalog");
-  const search = $("#search");
-  const modal = $("#modal");
-  const content = $("#modal-content");
+function normalize(item) {
+  if (typeof item === "string") {
+    return { name: item, id: item, upgradable: true };
+  }
 
-  let gifts = [];
-  let filtered = [];
-  let filter = "all";
-  let currentGift = null;
-  let currentTab = "models";
-  const cache = new Map();
+  if (item && typeof item === "object") {
+    const name = item.name || item.title || item.gift;
+    if (!name) return null;
+    return { ...item, name, id: item.id || name };
+  }
 
-  const escapeHTML = (value) =>
-    String(value ?? "").replace(/[&<>"']/g, (c) => ({
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#39;"
-    })[c]);
+  return null;
+}
 
-  const giftName = (gift) =>
-    String(gift?.name || gift?.title || gift?.gift || gift?.id || "Telegram Gift");
+function imageURL(gift) {
+  return `${API}/original/${encodeURIComponent(gift.id || gift.name)}.png?size=256`;
+}
 
-  const giftId = (gift) =>
-    String(gift?.id || gift?.giftId || gift?.name || giftName(gift));
+function showError(message) {
+  $("#status").textContent = "Ошибка";
+  $("#error-banner").classList.remove("hidden");
+  $("#error-banner").textContent =
+    message + " Если каталог не открылся, обнови страницу чуть позже.";
+}
 
-  async function api(path) {
-    const response = await fetch(API + path, {
-      headers: { Accept: "application/json" }
-    });
+function render() {
+  const query = ($("#search").value || "").trim().toLowerCase();
 
-    if (!response.ok) {
-      throw new Error("API вернул ошибку " + response.status);
+  const filtered = gifts.filter((gift) => {
+    const matches = gift.name.toLowerCase().includes(query);
+    const isUpgradable = gift.upgradable !== false;
+    const isLimited = gift.limited === true ||
+      gift.availability === "limited";
+
+    if (activeFilter === "upgradable" && !isUpgradable) return false;
+    if (activeFilter === "limited" && !isLimited) return false;
+
+    return matches;
+  });
+
+  $("#status").textContent = `${filtered.length} найдено`;
+
+  if (!filtered.length) {
+    $("#catalog").innerHTML =
+      '<div class="empty-state">Подарки не найдены.</div>';
+    return;
+  }
+
+  $("#catalog").innerHTML = filtered.map((gift) => `
+    <article class="gift-card">
+      <div class="gift-image-wrap">
+        <img
+          class="gift-image"
+          src="${esc(imageURL(gift))}"
+          alt="${esc(gift.name)}"
+          loading="lazy"
+          onerror="this.style.display='none';this.nextElementSibling.style.display='block'"
+        >
+        <div class="gift-emoji" style="display:none">🎁</div>
+      </div>
+      <div class="gift-info">
+        <div class="gift-name">${esc(gift.name)}</div>
+        <div class="gift-description">Коллекционный подарок Telegram</div>
+        <div class="gift-meta">
+          <span class="gift-price">Уточнить цену</span>
+          <span class="gift-badge">Каталог</span>
+        </div>
+        <button class="gift-rent-btn" data-gift="${esc(gift.name)}">
+          Подробнее
+        </button>
+      </div>
+    </article>
+  `).join("");
+}
+
+async function openGift(name) {
+  const gift = gifts.find((g) => g.name === name);
+  if (!gift) return;
+
+  $("#modal").classList.remove("hidden");
+  $("#modal-content").innerHTML = `
+    <h2>${esc(gift.name)}</h2>
+    <p>Подарок из каталога Telegram.</p>
+    <p>Стоимость и доступность аренды уточняются у менеджера.</p>
+    <form id="rent-form">
+      <div class="form-group">
+        <label for="rent-period">Желаемый срок аренды</label>
+        <select id="rent-period" required>
+          <option value="1 день">1 день</option>
+          <option value="3 дня">3 дня</option>
+          <option value="7 дней">7 дней</option>
+          <option value="30 дней">30 дней</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="rent-contact">Твой Telegram @username</label>
+        <input id="rent-contact" placeholder="@username" required>
+      </div>
+      <button class="primary-btn" type="submit">Создать заявку</button>
+    </form>
+    <p id="rent-result"></p>
+  `;
+
+  $("#rent-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+
+    const period = $("#rent-period").value;
+    const contact = $("#rent-contact").value.trim();
+
+    if (!contact) return;
+
+    const message =
+      `Здравствуйте! Хочу уточнить аренду подарка ${gift.name}. ` +
+      `Срок: ${period}. Telegram: ${contact}`;
+
+    $("#rent-result").textContent =
+      "Заявка подготовлена. Отправь её менеджеру для подтверждения.";
+
+    const tg = window.Telegram?.WebApp;
+    if (tg) {
+      tg.showPopup({
+        title: "Заявка подготовлена",
+        message: "Для оформления нужно отправить сообщение менеджеру.",
+        buttons: [{ type: "ok" }]
+      });
     }
 
-    return response.json();
-  }
+    const manager = "GiftChangesAPI";
+    const url = `https://t.me/${manager}?text=${encodeURIComponent(message)}`;
+    window.open(url, "_blank");
+  });
+}
 
-  function toGiftArray(data) {
+async function loadGifts() {
+  $("#status").textContent = "Загрузка…";
+  $("#catalog").innerHTML = `
+    <div class="loading">
+      <div class="spinner"></div>
+      <p>Загружаем каталог подарков…</p>
+    </div>`;
+
+  try {
+    const data = await getJSON(`${API}/gifts`);
     const list = Array.isArray(data)
       ? data
-      : Array.isArray(data?.gifts)
-        ? data.gifts
-        : Array.isArray(data?.items)
-          ? data.items
-          : Array.isArray(data?.data)
-            ? data.data
-            : [];
+      : Array.isArray(data.gifts) ? data.gifts
+      : Array.isArray(data.results) ? data.results
+      : [];
 
-    // /gifts может возвращать именно названия, а не объекты.
-    return list.map((item) => {
-      if (typeof item === "string" || typeof item === "number") {
-        return { name: String(item), id: String(item) };
-      }
+    gifts = list.map(normalize).filter(Boolean);
 
-      if (item && typeof item === "object") {
-        return {
-          ...item,
-          name: item.name || item.title || item.gift || String(item.id || "Telegram Gift")
-        };
-      }
-
-      return null;
-    }).filter(Boolean);
-  }
-
-  function giftImage(gift) {
-    return `${API}/original/${encodeURIComponent(giftId(gift))}.png?size=256`;
-  }
-
-  function isUpgradable(gift) {
-    return gift.upgradable === true || gift.isUpgradable === true;
-  }
-
-  function isLimited(gift) {
-    return gift.limited === true ||
-      gift.isLimited === true ||
-      String(gift.supply || "").toLowerCase().includes("limited");
-  }
-
-  function render() {
-    const query = search.value.trim().toLowerCase();
-
-    filtered = gifts.filter((gift) => {
-      const matchesSearch =
-        !query ||
-        giftName(gift).toLowerCase().includes(query);
-
-      const matchesFilter =
-        filter === "all" ||
-        (filter === "upgradable" && isUpgradable(gift)) ||
-        (filter === "limited" && isLimited(gift));
-
-      return matchesSearch && matchesFilter;
-    });
-
-    $("#status").textContent = `${filtered.length} подарков`;
-
-    if (!filtered.length) {
-      catalog.innerHTML = `
-        <div class="empty-state">
-          <p>Подарки по этому запросу не найдены.</p>
-          <p>Попробуй другой поиск или категорию.</p>
-        </div>`;
-      return;
+    if (!gifts.length) {
+      throw new Error("API вернул пустой список");
     }
 
-    catalog.innerHTML = filtered.map((gift, index) => {
-      const name = giftName(gift);
-      const image = giftImage(gift);
-      const tag = isUpgradable(gift)
-        ? "COLLECTIBLE"
-        : isLimited(gift)
-          ? "LIMITED"
-          : "TELEGRAM GIFT";
-
-      return `
-        <article class="gift-card">
-          <div class="gift-image-wrap">
-            <img
-              class="gift-image"
-              loading="lazy"
-              src="${escapeHTML(image)}"
-              alt="${escapeHTML(name)}"
-              onerror="this.style.display='none'"
-            >
-          </div>
-          <div class="gift-info">
-            <div class="gift-name">${escapeHTML(name)}</div>
-            <div class="gift-description">${tag}</div>
-            <div class="gift-meta">
-              <span class="gift-badge">${isUpgradable(gift) ? "Коллекционный" : "Telegram Gift"}</span>
-            </div>
-            <button class="gift-rent-btn" data-open="${index}">
-              Подробнее
-            </button>
-          </div>
-        </article>`;
-    }).join("");
-
-    catalog.querySelectorAll("[data-open]").forEach((button) => {
-      button.addEventListener("click", () => {
-        openGift(filtered[Number(button.dataset.open)]);
-      });
-    });
-  }
-
-  async function loadGifts() {
-    $("#status").textContent = "Загрузка…";
-    catalog.innerHTML = `
-      <div class="loading">
-        <div class="spinner"></div>
-        <p>Загружаем подарки…</p>
+    $("#gift-count").textContent = gifts.length.toLocaleString("ru-RU");
+    $("#error-banner").classList.add("hidden");
+    render();
+  } catch (error) {
+    console.error("NFT RENT catalog error:", error);
+    $("#catalog").innerHTML = `
+      <div class="empty-state">
+        <p>Не удалось загрузить каталог.</p>
+        <button class="gift-rent-btn" id="retry-load">Попробовать снова</button>
       </div>`;
-
-    try {
-      const data = await api("/gifts");
-      gifts = toGiftArray(data);
-
-      if (!gifts.length) {
-        throw new Error("API вернул пустой список");
-      }
-
-      gifts.sort((a, b) =>
-        giftName(a).localeCompare(giftName(b), "ru")
-      );
-
-      $("#gift-count").textContent =
-        gifts.length.toLocaleString("ru-RU");
-
-      $("#error-banner").classList.add("hidden");
-      render();
-    } catch (error) {
-      console.error("Ошибка каталога:", error);
-
-      $("#status").textContent = "Ошибка загрузки";
-      $("#error-banner").textContent =
-        "Не удалось загрузить каталог. Проверь интернет и попробуй ещё раз.";
-      $("#error-banner").classList.remove("hidden");
-
-      catalog.innerHTML = `
-        <div class="empty-state">
-          <p>Каталог временно недоступен.</p>
-          <button class="primary-btn" id="retry">Повторить загрузку</button>
-        </div>`;
-
-      $("#retry").addEventListener("click", loadGifts);
-    }
+    $("#retry-load").addEventListener("click", loadGifts);
+    showError("Не удалось получить данные каталога.");
   }
+}
 
-  async function loadDetails(gift) {
-    const key = giftName(gift);
+$("#search").addEventListener("input", render);
 
-    if (cache.has(key)) {
-      return cache.get(key);
-    }
+$("#clear-search").addEventListener("click", () => {
+  $("#search").value = "";
+  render();
+});
 
-    const details = await api(
-      "/gift/" + encodeURIComponent(key)
+document.querySelectorAll(".filter").forEach((button) => {
+  button.addEventListener("click", () => {
+    document.querySelectorAll(".filter").forEach((b) =>
+      b.classList.remove("active")
     );
-
-    cache.set(key, details);
-    return details;
-  }
-
-  function listFrom(data, key) {
-    return Array.isArray(data?.[key]) ? data[key] : [];
-  }
-
-  function renderVariants(details) {
-    const holder = $("#variants");
-    if (!holder) return;
-
-    const keys = {
-      models: "models",
-      backdrops: "backdrops",
-      symbols: "symbols"
-    };
-
-    const items = listFrom(details, keys[currentTab]);
-
-    if (!items.length) {
-      holder.innerHTML = `
-        <div class="empty-state">
-          Для этого раздела пока нет данных.
-        </div>`;
-      return;
-    }
-
-    holder.innerHTML = items.map((item) => {
-      const name = giftName(item);
-      const rarity = item.rarity != null
-        ? `${item.rarity}% редкости`
-        : "";
-
-      if (currentTab === "backdrops") {
-        let color = item.centerColor || item.color || item.hex || "#383249";
-
-        if (!/^#?[0-9a-f]{3,8}$/i.test(color)) {
-          color = "#383249";
-        }
-
-        if (!color.startsWith("#")) color = "#" + color;
-
-        return `
-          <div class="variant-card">
-            <div style="height:62px;border-radius:12px;background:${color}"></div>
-            <div class="variant-name">${escapeHTML(name)}</div>
-            <div class="variant-rarity">${escapeHTML(rarity)}</div>
-          </div>`;
-      }
-
-      const endpoint = currentTab === "models" ? "model" : "symbol";
-      const imageURL =
-        `${API}/${endpoint}/${encodeURIComponent(giftName(currentGift))}/${encodeURIComponent(name)}.png?size=128`;
-
-      return `
-        <div class="variant-card">
-          <img loading="lazy" src="${escapeHTML(imageURL)}" alt="${escapeHTML(name)}">
-          <div class="variant-name">${escapeHTML(name)}</div>
-          <div class="variant-rarity">${escapeHTML(rarity)}</div>
-        </div>`;
-    }).join("");
-  }
-
-  function requestForm(gift) {
-    return `
-      <form class="request-form" id="rent-form">
-        <h3>Заявка на аренду</h3>
-        <p>Менеджер должен подтвердить наличие и условия аренды.</p>
-
-        <div class="form-group">
-          <label for="contact">Твой Telegram @username</label>
-          <input id="contact" required maxlength="80" placeholder="@username">
-        </div>
-
-        <div class="form-group">
-          <label for="duration">Желаемый срок</label>
-          <select id="duration">
-            <option>1 день</option>
-            <option>3 дня</option>
-            <option>7 дней</option>
-            <option>30 дней</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label for="comment">Комментарий</label>
-          <textarea id="comment" maxlength="500" placeholder="Какая модель интересует?"></textarea>
-        </div>
-
-        <button class="primary-btn" type="submit">
-          Отправить заявку
-        </button>
-
-        <p class="disclaimer">
-          Отправка в бота работает только при настроенном обработчике Mini App.
-        </p>
-      </form>`;
-  }
-
-  function bindRequest(gift) {
-    $("#rent-form")?.addEventListener("submit", (event) => {
-      event.preventDefault();
-
-      const request = {
-        type: "rent_request",
-        gift: giftName(gift),
-        giftId: gift.id || gift.giftId || null,
-        contact: $("#contact").value.trim(),
-        duration: $("#duration").value,
-        comment: $("#comment").value.trim()
-      };
-
-      if (!request.contact) return;
-
-      if (tg?.sendData) {
-        tg.sendData(JSON.stringify(request));
-        tg.close();
-      } else {
-        const message =
-          `Заявка на аренду\n` +
-          `Подарок: ${request.gift}\n` +
-          `Контакт: ${request.contact}\n` +
-          `Срок: ${request.duration}\n` +
-          `Комментарий: ${request.comment || "—"}`;
-
-        content.insertAdjacentHTML(
-          "beforeend",
-          `<div class="notice">${escapeHTML(message).replace(/\n/g, "<br>")}</div>`
-        );
-      }
-    });
-  }
-
-  async function openGift(gift) {
-    currentGift = gift;
-    currentTab = "models";
-
-    modal.classList.remove("hidden");
-    document.body.style.overflow = "hidden";
-
-    content.innerHTML = `
-      <h2>${escapeHTML(giftName(gift))}</h2>
-      <div class="loading">
-        <div class="spinner"></div>
-        <p>Загружаем информацию…</p>
-      </div>`;
-
-    try {
-      const details = await loadDetails(gift);
-
-      content.innerHTML = `
-        <div class="detail-head">
-          <div class="detail-art">
-            <img src="${escapeHTML(giftImage(gift))}" alt="">
-          </div>
-          <div>
-            <h2>${escapeHTML(giftName(gift))}</h2>
-            <p>Информация о подарке</p>
-            <div class="detail-badges">
-              <span class="detail-badge">${listFrom(details, "models").length} моделей</span>
-              <span class="detail-badge">${listFrom(details, "backdrops").length} фонов</span>
-              <span class="detail-badge">${listFrom(details, "symbols").length} узоров</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="tabs">
-          <button class="tab active" data-tab="models">Модели</button>
-          <button class="tab" data-tab="backdrops">Фоны</button>
-          <button class="tab" data-tab="symbols">Узоры</button>
-        </div>
-
-        <div id="variants" class="variant-grid"></div>
-
-        ${requestForm(gift)}
-
-        <p class="disclaimer">
-          Данные каталога предоставляются @GiftChangesAPI.
-          Наличие подарка для аренды должен подтвердить менеджер.
-        </p>`;
-
-      renderVariants(details);
-
-      content.querySelectorAll("[data-tab]").forEach((button) => {
-        button.addEventListener("click", () => {
-          currentTab = button.dataset.tab;
-
-          content.querySelectorAll("[data-tab]").forEach((tab) => {
-            tab.classList.toggle("active", tab === button);
-          });
-
-          renderVariants(details);
-        });
-      });
-
-      bindRequest(gift);
-    } catch (error) {
-      console.error("Ошибка подробностей подарка:", error);
-
-      content.innerHTML = `
-        <h2>${escapeHTML(giftName(gift))}</h2>
-        <p>Не удалось загрузить подробности подарка. Попробуй ещё раз позже.</p>
-        <button class="primary-btn" id="retry-detail">Повторить</button>
-        ${requestForm(gift)}`;
-
-      $("#retry-detail").addEventListener("click", () => openGift(gift));
-      bindRequest(gift);
-    }
-  }
-
-  function closeModal() {
-    modal.classList.add("hidden");
-    document.body.style.overflow = "";
-  }
-
-  modal.addEventListener("click", (event) => {
-    if (event.target?.dataset?.close === "true") {
-      closeModal();
-    }
-  });
-
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") closeModal();
-  });
-
-  search.addEventListener("input", render);
-
-  $("#clear-search")?.addEventListener("click", () => {
-    search.value = "";
+    button.classList.add("active");
+    activeFilter = button.dataset.filter;
     render();
   });
+});
 
-  document.querySelectorAll(".filter").forEach((button) => {
-    button.addEventListener("click", () => {
-      filter = button.dataset.filter;
+$("#catalog").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-gift]");
+  if (button) openGift(button.dataset.gift);
+});
 
-      document.querySelectorAll(".filter").forEach((item) => {
-        item.classList.toggle("active", item === button);
-      });
+$("#modal").addEventListener("click", (event) => {
+  if (event.target.dataset.close === "true") {
+    $("#modal").classList.add("hidden");
+  }
+});
 
-      render();
-    });
-  });
+if (window.Telegram?.WebApp) {
+  window.Telegram.WebApp.ready();
+  window.Telegram.WebApp.expand();
+}
 
-  loadGifts();
-})();
+loadGifts();
