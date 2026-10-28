@@ -1,115 +1,111 @@
 
+
 <!doctype html>
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <meta name="theme-color" content="#101018">
-  <title>NFT RENT — Telegram Gifts</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0b0912">
+  <title>NFT RENT</title>
   <link rel="stylesheet" href="style.css">
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script defer src="app.js"></script>
 </head>
 <body>
-  <div class="app-shell">
+  <header>
+    <a class="brand" href="#">NFT <b>RENT</b></a>
+    <button id="admin-open" class="ghost">Админ-панель</button>
+  </header>
 
-    <header class="topbar">
-      <div class="brand-mark">NR</div>
-      <div>
-        <div class="brand-title">NFT RENT</div>
-        <div class="brand-subtitle">TELEGRAM COLLECTIBLES</div>
-      </div>
-      <div class="live-pill">
-        <span></span> LIVE CATALOG
-      </div>
-    </header>
-
+  <main>
     <section class="hero">
-      <div class="hero-kicker">COLLECT • EXPLORE • RENT</div>
-      <h1>
-        Найди свой<br>
-        <span>коллекционный подарок</span>
-      </h1>
-      <p>
-        Каталог подарков Telegram и их моделей.
-        Отправь заявку менеджеру, чтобы уточнить
-        доступность и условия аренды.
-      </p>
-
-      <div class="hero-stats">
-        <div>
-          <strong id="gift-count">—</strong>
-          <small>подарков в каталоге</small>
-        </div>
-        <div>
-          <strong>LIVE</strong>
-          <small>данные каталога</small>
-        </div>
+      <small>TELEGRAM GIFT RENTAL</small>
+      <h1>Твой следующий<br><span>редкий подарок.</span></h1>
+      <p>Выбирай подарок, указывай срок аренды и отправляй заявку менеджеру.</p>
+      <div class="stats">
+        <b><strong id="gift-count">—</strong><small> подарков в каталоге</small></b>
+        <b><strong>24/7</strong><small> приём заявок</small></b>
       </div>
     </section>
 
-    <div class="search-wrap">
-      <span class="search-icon">⌕</span>
-      <input
-        id="search"
-        type="search"
-        placeholder="Поиск подарка..."
-        autocomplete="off"
-      >
-      <button id="clear-search">×</button>
-    </div>
-
-    <nav class="filters">
-      <button class="filter active" data-filter="all">Все</button>
-      <button class="filter" data-filter="upgradable">Коллекционные</button>
-      <button class="filter" data-filter="limited">Лимитированные</button>
-    </nav>
-
-    <div class="section-heading">
-      <div>
-        <div class="eyebrow">EXPLORE</div>
-        <h2>Каталог подарков</h2>
+    <section>
+      <div class="heading">
+        <div><small>КАТАЛОГ</small><h2>Выбери подарок</h2></div>
+        <span id="catalog-status">Загрузка…</span>
       </div>
-      <span id="status" class="status">Загрузка…</span>
-    </div>
-
-    <div id="error-banner" class="notice hidden"></div>
-
-    <main id="catalog" class="catalog">
-      <div class="loading">
-        <div class="spinner"></div>
-        <p>Загружаем каталог Telegram Gifts…</p>
+      <div class="filters">
+        <input id="search" placeholder="Поиск подарка…">
+        <select id="sort">
+          <option value="name">По названию</option>
+          <option value="price">Сначала дешевле</option>
+        </select>
       </div>
-    </main>
-
-    <footer>
-      <div class="footer-brand">
-        NFT RENT <span>•</span> TELEGRAM
+      <div id="gift-grid" class="grid">
+        <p>Загружаем каталог…</p>
       </div>
-      <p>
-        Каталог и изображения предоставляются API проекта
-        <a
-          href="https://t.me/GiftChangesAPI"
-          target="_blank"
-          rel="noreferrer"
-        >@GiftChangesAPI</a>.
-      </p>
-      <p class="footer-note">
-        Наличие подарка, цена и срок аренды подтверждаются
-        менеджером. Карточки каталога не означают, что подарок
-        доступен для аренды.
-      </p>
-    </footer>
-
-  </div>
-
-  <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
-    <div class="modal-backdrop" data-close="true"></div>
-    <section class="modal-panel">
-      <button class="modal-close" data-close="true">×</button>
-      <div id="modal-content"></div>
     </section>
+
+    <section class="how">
+      <small>КАК ЭТО РАБОТАЕТ</small>
+      <h2>Просто и прозрачно</h2>
+      <div class="steps">
+        <article><b>01</b><h3>Выбери Gift</h3><p>Найди нужный подарок.</p></article>
+        <article><b>02</b><h3>Оставь заявку</h3><p>Укажи срок и Telegram для связи.</p></article>
+        <article><b>03</b><h3>Подтверди условия</h3><p>Менеджер подтвердит наличие и цену.</p></article>
+      </div>
+    </section>
+  </main>
+
+  <footer>NFT RENT © <span id="year"></span> · Наличие и цена подтверждаются менеджером</footer>
+
+  <div id="request-modal" class="modal hidden">
+    <div class="dialog">
+      <button class="close" data-close="request-modal">×</button>
+      <small>НОВАЯ ЗАЯВКА</small>
+      <h2>Аренда подарка</h2>
+      <p id="selected-gift"></p>
+      <form id="request-form">
+        <input id="gift-name" type="hidden">
+        <label>Срок аренды
+          <select id="duration">
+            <option>1 день</option>
+            <option>3 дня</option>
+            <option>7 дней</option>
+            <option>30 дней</option>
+          </select>
+        </label>
+        <label>Telegram username
+          <input id="telegram" placeholder="@username" required maxlength="40">
+        </label>
+        <label>Комментарий
+          <textarea id="comment" maxlength="500" placeholder="Необязательно"></textarea>
+        </label>
+        <button class="primary">Отправить заявку</button>
+        <p id="request-message"></p>
+      </form>
+    </div>
   </div>
 
-  <script src="app.js"></script>
+  <div id="admin-modal" class="modal hidden">
+    <div class="dialog wide">
+      <button class="close" data-close="admin-modal">×</button>
+      <small>PRIVATE AREA</small>
+      <h2>Админ-панель</h2>
+      <div id="admin-login">
+        <label>Пароль администратора
+          <input id="admin-password" type="password">
+        </label>
+        <button id="admin-login-button" class="primary">Войти</button>
+        <p id="admin-login-message"></p>
+      </div>
+      <div id="admin-content" class="hidden">
+        <button id="refresh-requests" class="ghost">Обновить</button>
+        <button id="admin-logout" class="ghost">Выйти</button>
+        <p id="admin-summary"></p>
+        <div id="admin-requests"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
 </body>
 </html>
