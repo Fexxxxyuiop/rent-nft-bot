@@ -1,24 +1,461 @@
+
 (() => {
-const API='https://api.changes.tg', tg=window.Telegram?.WebApp;
-if(tg){tg.ready();tg.expand();}
-const $=s=>document.querySelector(s);let gifts=[],filtered=[],filter='all',cache=new Map(),current=null,tab='models';
-const catalog=$('#catalog'),search=$('#search'),modal=$('#modal'),content=$('#modal-content');
-const arr=d=>Array.isArray(d)?d:(d&&typeof d==='object'?['gifts','items','results','data'].map(k=>d[k]).find(Array.isArray)||Object.entries(d).map(([k,v])=>typeof v==='object'&&v?({name:v.name||k,...v}):({name:k,value:v})):[]);
-const name=x=>String(x?.name||x?.title||x?.gift||x?.slug||x?.id||'Telegram Gift');
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const slug=x=>String(x?.name||x?.title||x?.slug||x?.id||'').trim();
-const image=x=>x?.giftId||x?.id?`${API}/original/${encodeURIComponent(x.giftId||x.id)}.png?size=256`:'';
-const up=x=>x?.upgradable===true||x?.isUpgradable===true||x?.type==='upgradable';
-const limited=x=>x?.limited===true||x?.isLimited===true||String(x?.supply||'').toLowerCase().includes('limited');
-async function json(path){let r=await fetch(API+path,{headers:{Accept:'application/json'}});if(!r.ok)throw Error('API '+r.status);return r.json();}
-function render(){let q=search.value.trim().toLowerCase();filtered=gifts.filter(g=>(!q||name(g).toLowerCase().includes(q)||String(g.id||'').toLowerCase().includes(q))&&(filter==='all'||(filter==='upgradable'?up(g):limited(g))));$('#status').textContent=filtered.length+' Ð¿Ð¾Ð·Ð¸ÑÐ¸Ð¹';if(!filtered.length){catalog.innerHTML='<div class="empty">ÐÐ¸ÑÐµÐ³Ð¾ Ð½Ðµ Ð½Ð°Ð¹Ð´ÐµÐ½Ð¾. ÐÐ¾Ð¿ÑÐ¾Ð±ÑÐ¹ Ð¸Ð·Ð¼ÐµÐ½Ð¸ÑÑ Ð·Ð°Ð¿ÑÐ¾Ñ.</div>';return;}catalog.innerHTML=filtered.map((g,i)=>{let im=image(g);return `<button class="gift-card" data-i="${i}"><div class="gift-art">${im?`<img loading="lazy" src="${esc(im)}" alt="" onerror="this.style.display='none'">`:''}<span class="art-fallback">ð</span><span class="tag">${up(g)?'COLLECTIBLE':limited(g)?'LIMITED':'TELEGRAM GIFT'}</span></div><div class="gift-info"><div class="gift-name">${esc(name(g))}</div><div class="gift-meta"><span>${up(g)?'ÐÐ¾Ð»Ð»ÐµÐºÑÐ¸Ð¾Ð½Ð½Ð°Ñ ÑÐµÑÐ¸Ñ':'Telegram Gift'}</span><span class="arrow">â</span></div></div></button>`}).join('');catalog.querySelectorAll('.gift-card').forEach(b=>b.onclick=()=>open(filtered[+b.dataset.i]));catalog.querySelectorAll('.gift-art img').forEach(im=>im.onload=()=>{let f=im.parentElement.querySelector('.art-fallback');if(f)f.style.display='none';});}
-async function load(){try{let d=await json('/gifts');gifts=arr(d).filter(x=>x&&typeof x==='object');if(!gifts.length)throw Error('empty');gifts.sort((a,b)=>name(a).localeCompare(name(b),'ru'));$('#gift-count').textContent=gifts.length.toLocaleString('ru-RU');$('#error-banner').classList.add('hidden');render();}catch(e){$('#status').textContent='Ð½ÐµÑ ÑÐ¾ÐµÐ´Ð¸Ð½ÐµÐ½Ð¸Ñ';$('#error-banner').textContent='ÐÐµ ÑÐ´Ð°Ð»Ð¾ÑÑ Ð·Ð°Ð³ÑÑÐ·Ð¸ÑÑ Ð¶Ð¸Ð²Ð¾Ð¹ ÐºÐ°ÑÐ°Ð»Ð¾Ð³. ÐÑÐ¾Ð²ÐµÑÑ Ð¸Ð½ÑÐµÑÐ½ÐµÑ Ð¸ Ð¿Ð¾Ð¿ÑÐ¾Ð±ÑÐ¹ ÑÐ½Ð¾Ð²Ð°.';$('#error-banner').classList.remove('hidden');catalog.innerHTML='<div class="empty">ÐÐ°ÑÐ°Ð»Ð¾Ð³ Ð²ÑÐµÐ¼ÐµÐ½Ð½Ð¾ Ð½ÐµÐ´Ð¾ÑÑÑÐ¿ÐµÐ½.<button class="primary-btn" id="retry">ÐÐ¾Ð²ÑÐ¾ÑÐ¸ÑÑ Ð·Ð°Ð³ÑÑÐ·ÐºÑ</button></div>';$('#retry')?.addEventListener('click',load);}}
-async function details(g){let k=slug(g);if(cache.has(k))return cache.get(k);let d=await json('/gift/'+encodeURIComponent(k));cache.set(k,d);return d;}
-function form(g){return `<form class="request-form" id="rent-form"><h3>ÐÐ°ÑÐ²ÐºÐ° Ð½Ð° Ð°ÑÐµÐ½Ð´Ñ</h3><p>ÐÐµÐ½ÐµÐ´Ð¶ÐµÑ Ð´Ð¾Ð»Ð¶ÐµÐ½ Ð¾ÑÐ´ÐµÐ»ÑÐ½Ð¾ Ð¿Ð¾Ð´ÑÐ²ÐµÑÐ´Ð¸ÑÑ Ð½Ð°Ð»Ð¸ÑÐ¸Ðµ Ð¸ ÑÑÐ»Ð¾Ð²Ð¸Ñ.</p><label for="contact">Ð¢Ð²Ð¾Ð¹ Telegram @username Ð¸Ð»Ð¸ ÐºÐ¾Ð½ÑÐ°ÐºÑ</label><input id="contact" required maxlength="80" placeholder="@username"><label for="duration">ÐÐµÐ»Ð°ÐµÐ¼ÑÐ¹ ÑÑÐ¾Ðº</label><select id="duration"><option>1 Ð´ÐµÐ½Ñ</option><option>3 Ð´Ð½Ñ</option><option>7 Ð´Ð½ÐµÐ¹</option><option>30 Ð´Ð½ÐµÐ¹</option></select><label for="comment">ÐÐ¾Ð¼Ð¼ÐµÐ½ÑÐ°ÑÐ¸Ð¹ (Ð½ÐµÐ¾Ð±ÑÐ·Ð°ÑÐµÐ»ÑÐ½Ð¾)</label><textarea id="comment" maxlength="500" placeholder="ÐÐ°ÐºÐ°Ñ Ð¼Ð¾Ð´ÐµÐ»Ñ Ð¸Ð½ÑÐµÑÐµÑÑÐµÑ?"></textarea><button class="primary-btn" type="submit">ÐÑÐ¿ÑÐ°Ð²Ð¸ÑÑ Ð·Ð°ÑÐ²ÐºÑ Ð±Ð¾ÑÑ</button><div class="disclaimer">ÐÑÐ¿ÑÐ°Ð²ÐºÐ° ÑÐ°Ð±Ð¾ÑÐ°ÐµÑ, ÐµÑÐ»Ð¸ Ð±Ð¾Ñ Ð½Ð°ÑÑÑÐ¾ÐµÐ½ Ð¿ÑÐ¸Ð½Ð¸Ð¼Ð°ÑÑ Ð´Ð°Ð½Ð½ÑÐµ Mini App.</div></form>`;}
-function bindForm(g){$('#rent-form')?.addEventListener('submit',e=>{e.preventDefault();let p={type:'rent_request',gift:name(g),giftId:g.id??g.giftId??null,contact:$('#contact').value.trim(),duration:$('#duration').value,comment:$('#comment').value.trim()};if(!p.contact)return;if(tg?.sendData){tg.sendData(JSON.stringify(p));tg.close();}else{let msg=`ÐÐ°ÑÐ²ÐºÐ° Ð½Ð° Ð°ÑÐµÐ½Ð´Ñ\\nÐÐ¾Ð´Ð°ÑÐ¾Ðº: ${p.gift}\\nÐÐ¾Ð½ÑÐ°ÐºÑ: ${p.contact}\\nÐ¡ÑÐ¾Ðº: ${p.duration}\\nÐÐ¾Ð¼Ð¼ÐµÐ½ÑÐ°ÑÐ¸Ð¹: ${p.comment||'â'}`;content.insertAdjacentHTML('beforeend',`<div class="notice">${esc(msg).replace(/\\n/g,'<br>')}<button class="primary-btn" type="button" id="copy">Ð¡ÐºÐ¾Ð¿Ð¸ÑÐ¾Ð²Ð°ÑÑ</button></div>`);$('#copy').onclick=()=>navigator.clipboard?.writeText(msg);}});}
-function variants(d){let keys=tab==='models'?['models']:tab==='backdrops'?['backdrops']:['symbols','patterns'];for(let k of keys)if(Array.isArray(d?.[k]))return d[k];return [];}
-function renderVariants(g,d){let vs=variants(d),holder=$('#variants');if(!vs.length){holder.innerHTML='<div class="empty" style="min-height:90px">ÐÐµÑ Ð´Ð°Ð½Ð½ÑÑ Ð´Ð»Ñ ÑÑÐ¾Ð³Ð¾ ÑÐ°Ð·Ð´ÐµÐ»Ð°.</div>';return;}holder.innerHTML=vs.slice(0,72).map(v=>{let n=name(v),rar=v.rarity??(v.rarityPermille!=null?(Number(v.rarityPermille)/10).toFixed(1)+'%':'');if(tab==='backdrops'){let c=v.centerColor||v.color||v.hex||v.backgroundColor||'#383249';if(typeof c!=='string'||!/^(#?[0-9a-f]{3,8})$/i.test(c))c='#383249';if(!c.startsWith('#'))c='#'+c;return `<div class="variant-card"><div style="width:62px;height:62px;border-radius:12px;margin:0 auto 6px;background:${c};border:1px solid #ffffff22"></div><div class="variant-name">${esc(n)}</div><div class="variant-rarity">${esc(rar||'Ð¤Ð¾Ð½')}</div></div>`;}let url=tab==='models'?`${API}/model/${encodeURIComponent(name(g))}/${encodeURIComponent(n)}.png?size=128`:`${API}/symbol/${encodeURIComponent(name(g))}/${encodeURIComponent(n)}.png?size=128`;return `<div class="variant-card"><img loading="lazy" src="${esc(url)}" alt="" onerror="this.style.visibility='hidden'"><div class="variant-name">${esc(n)}</div><div class="variant-rarity">${esc(rar||(tab==='symbols'?'Ð£Ð·Ð¾Ñ':'ÐÐ¾Ð´ÐµÐ»Ñ'))}${v.crafted?' â¢ CRAFTED':''}</div></div>`}).join('');}
-async function open(g){current=g;tab='models';modal.classList.remove('hidden');document.body.style.overflow='hidden';let im=image(g);content.innerHTML=`<div class="detail-head"><div class="detail-art">${im?`<img src="${esc(im)}" alt="">`:'ð'}</div><div><h2>${esc(name(g))}</h2><p>ÐÐ°Ð³ÑÑÐ¶Ð°ÐµÐ¼ Ð¼Ð¾Ð´ÐµÐ»Ð¸, ÑÐ¾Ð½Ñ Ð¸ ÑÐ·Ð¾ÑÑâ¦</p></div></div><div class="detail-loading"><div class="spinner" style="margin:auto"></div>ÐÐ¾Ð»ÑÑÐ°ÐµÐ¼ Ð´Ð°Ð½Ð½ÑÐµ ÐºÐ°ÑÐ°Ð»Ð¾Ð³Ð°</div>`;try{let d=await details(g);let count=k=>Array.isArray(d[k])?d[k].length:0;content.innerHTML=`<div class="detail-head"><div class="detail-art">${im?`<img src="${esc(im)}" alt="">`:'ð'}</div><div><h2>${esc(name(g))}</h2><p>${d.upgradable?'ÐÐ¾Ð»Ð»ÐµÐºÑÐ¸Ð¾Ð½Ð½Ð°Ñ ÑÐµÑÐ¸Ñ Telegram':'ÐÐ¾Ð´Ð°ÑÐ¾ÑÐ½Ð°Ñ ÑÐµÑÐ¸Ñ Telegram'}</p><div class="detail-badges"><span class="detail-badge">${count('models')} Ð¼Ð¾Ð´ÐµÐ»ÐµÐ¹</span><span class="detail-badge">${count('backdrops')} ÑÐ¾Ð½Ð¾Ð²</span><span class="detail-badge">${count('symbols')||count('patterns')} ÑÐ·Ð¾ÑÐ¾Ð²</span></div></div></div><div class="tabs"><button class="tab active" data-tab="models">ÐÐ¾Ð´ÐµÐ»Ð¸</button><button class="tab" data-tab="backdrops">Ð¤Ð¾Ð½Ñ</button><button class="tab" data-tab="symbols">Ð£Ð·Ð¾ÑÑ</button></div><div id="variants" class="variant-grid"></div>${form(g)}<div class="disclaimer">ÐÐ°Ð½Ð½ÑÐµ ÐºÐ°ÑÐ°Ð»Ð¾Ð³Ð° Ð¿ÑÐµÐ´Ð¾ÑÑÐ°Ð²Ð»ÑÑÑÑÑ @GiftChangesAPI. Ð­ÑÐ¾ Ð½Ðµ Ð¿Ð¾Ð´ÑÐ²ÐµÑÐ¶Ð´ÐµÐ½Ð¸Ðµ Ð½Ð°Ð»Ð¸ÑÐ¸Ñ Ð¿Ð¾Ð´Ð°ÑÐºÐ° Ð´Ð»Ñ Ð°ÑÐµÐ½Ð´Ñ Ð¸ Ð½Ðµ Ð¾ÑÐ¸ÑÐ¸Ð°Ð»ÑÐ½ÑÐ¹ Ð¸Ð½ÑÐµÑÑÐµÐ¹Ñ Telegram.</div>`;renderVariants(g,d);content.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;content.querySelectorAll('[data-tab]').forEach(x=>x.classList.toggle('active',x===b));renderVariants(g,d);});bindForm(g);}catch(e){content.innerHTML=`<div class="detail-head"><div class="detail-art">ð</div><div><h2>${esc(name(g))}</h2><p>ÐÐµ ÑÐ´Ð°Ð»Ð¾ÑÑ Ð·Ð°Ð³ÑÑÐ·Ð¸ÑÑ Ð¿Ð¾Ð´ÑÐ¾Ð±Ð½Ð¾ÑÑÐ¸. ÐÐ¾Ð¿ÑÐ¾Ð±ÑÐ¹ Ð¿Ð¾Ð·Ð¶Ðµ.</p></div></div><button class="primary-btn" id="retry-detail">ÐÐ¾Ð²ÑÐ¾ÑÐ¸ÑÑ</button>${form(g)}`;$('#retry-detail').onclick=()=>open(g);bindForm(g);}}
-function close(){modal.classList.add('hidden');document.body.style.overflow='';}
-modal.addEventListener('click',e=>{if(e.target?.dataset?.close==='true')close();});document.addEventListener('keydown',e=>{if(e.key==='Escape')close();});search.addEventListener('input',render);$('#clear-search').onclick=()=>{search.value='';render();};document.querySelectorAll('.filter').forEach(b=>b.onclick=()=>{filter=b.dataset.filter;document.querySelectorAll('.filter').forEach(x=>x.classList.toggle('active',x===b));render();});load();
+  const API = "https://api.changes.tg";
+  const tg = window.Telegram?.WebApp;
+
+  if (tg) {
+    tg.ready();
+    tg.expand();
+  }
+
+  const $ = (s) => document.querySelector(s);
+
+  const catalog = $("#catalog");
+  const search = $("#search");
+  const modal = $("#modal");
+  const content = $("#modal-content");
+
+  let gifts = [];
+  let filtered = [];
+  let filter = "all";
+  let currentGift = null;
+  let currentTab = "models";
+  const cache = new Map();
+
+  const escapeHTML = (value) =>
+    String(value ?? "").replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;"
+    })[c]);
+
+  const giftName = (gift) =>
+    String(gift?.name || gift?.title || gift?.gift || gift?.id || "Telegram Gift");
+
+  const giftId = (gift) =>
+    String(gift?.id || gift?.giftId || gift?.name || giftName(gift));
+
+  async function api(path) {
+    const response = await fetch(API + path, {
+      headers: { Accept: "application/json" }
+    });
+
+    if (!response.ok) {
+      throw new Error("API вернул ошибку " + response.status);
+    }
+
+    return response.json();
+  }
+
+  function toGiftArray(data) {
+    const list = Array.isArray(data)
+      ? data
+      : Array.isArray(data?.gifts)
+        ? data.gifts
+        : Array.isArray(data?.items)
+          ? data.items
+          : Array.isArray(data?.data)
+            ? data.data
+            : [];
+
+    // /gifts может возвращать именно названия, а не объекты.
+    return list.map((item) => {
+      if (typeof item === "string" || typeof item === "number") {
+        return { name: String(item), id: String(item) };
+      }
+
+      if (item && typeof item === "object") {
+        return {
+          ...item,
+          name: item.name || item.title || item.gift || String(item.id || "Telegram Gift")
+        };
+      }
+
+      return null;
+    }).filter(Boolean);
+  }
+
+  function giftImage(gift) {
+    return `${API}/original/${encodeURIComponent(giftId(gift))}.png?size=256`;
+  }
+
+  function isUpgradable(gift) {
+    return gift.upgradable === true || gift.isUpgradable === true;
+  }
+
+  function isLimited(gift) {
+    return gift.limited === true ||
+      gift.isLimited === true ||
+      String(gift.supply || "").toLowerCase().includes("limited");
+  }
+
+  function render() {
+    const query = search.value.trim().toLowerCase();
+
+    filtered = gifts.filter((gift) => {
+      const matchesSearch =
+        !query ||
+        giftName(gift).toLowerCase().includes(query);
+
+      const matchesFilter =
+        filter === "all" ||
+        (filter === "upgradable" && isUpgradable(gift)) ||
+        (filter === "limited" && isLimited(gift));
+
+      return matchesSearch && matchesFilter;
+    });
+
+    $("#status").textContent = `${filtered.length} подарков`;
+
+    if (!filtered.length) {
+      catalog.innerHTML = `
+        <div class="empty-state">
+          <p>Подарки по этому запросу не найдены.</p>
+          <p>Попробуй другой поиск или категорию.</p>
+        </div>`;
+      return;
+    }
+
+    catalog.innerHTML = filtered.map((gift, index) => {
+      const name = giftName(gift);
+      const image = giftImage(gift);
+      const tag = isUpgradable(gift)
+        ? "COLLECTIBLE"
+        : isLimited(gift)
+          ? "LIMITED"
+          : "TELEGRAM GIFT";
+
+      return `
+        <article class="gift-card">
+          <div class="gift-image-wrap">
+            <img
+              class="gift-image"
+              loading="lazy"
+              src="${escapeHTML(image)}"
+              alt="${escapeHTML(name)}"
+              onerror="this.style.display='none'"
+            >
+          </div>
+          <div class="gift-info">
+            <div class="gift-name">${escapeHTML(name)}</div>
+            <div class="gift-description">${tag}</div>
+            <div class="gift-meta">
+              <span class="gift-badge">${isUpgradable(gift) ? "Коллекционный" : "Telegram Gift"}</span>
+            </div>
+            <button class="gift-rent-btn" data-open="${index}">
+              Подробнее
+            </button>
+          </div>
+        </article>`;
+    }).join("");
+
+    catalog.querySelectorAll("[data-open]").forEach((button) => {
+      button.addEventListener("click", () => {
+        openGift(filtered[Number(button.dataset.open)]);
+      });
+    });
+  }
+
+  async function loadGifts() {
+    $("#status").textContent = "Загрузка…";
+    catalog.innerHTML = `
+      <div class="loading">
+        <div class="spinner"></div>
+        <p>Загружаем подарки…</p>
+      </div>`;
+
+    try {
+      const data = await api("/gifts");
+      gifts = toGiftArray(data);
+
+      if (!gifts.length) {
+        throw new Error("API вернул пустой список");
+      }
+
+      gifts.sort((a, b) =>
+        giftName(a).localeCompare(giftName(b), "ru")
+      );
+
+      $("#gift-count").textContent =
+        gifts.length.toLocaleString("ru-RU");
+
+      $("#error-banner").classList.add("hidden");
+      render();
+    } catch (error) {
+      console.error("Ошибка каталога:", error);
+
+      $("#status").textContent = "Ошибка загрузки";
+      $("#error-banner").textContent =
+        "Не удалось загрузить каталог. Проверь интернет и попробуй ещё раз.";
+      $("#error-banner").classList.remove("hidden");
+
+      catalog.innerHTML = `
+        <div class="empty-state">
+          <p>Каталог временно недоступен.</p>
+          <button class="primary-btn" id="retry">Повторить загрузку</button>
+        </div>`;
+
+      $("#retry").addEventListener("click", loadGifts);
+    }
+  }
+
+  async function loadDetails(gift) {
+    const key = giftName(gift);
+
+    if (cache.has(key)) {
+      return cache.get(key);
+    }
+
+    const details = await api(
+      "/gift/" + encodeURIComponent(key)
+    );
+
+    cache.set(key, details);
+    return details;
+  }
+
+  function listFrom(data, key) {
+    return Array.isArray(data?.[key]) ? data[key] : [];
+  }
+
+  function renderVariants(details) {
+    const holder = $("#variants");
+    if (!holder) return;
+
+    const keys = {
+      models: "models",
+      backdrops: "backdrops",
+      symbols: "symbols"
+    };
+
+    const items = listFrom(details, keys[currentTab]);
+
+    if (!items.length) {
+      holder.innerHTML = `
+        <div class="empty-state">
+          Для этого раздела пока нет данных.
+        </div>`;
+      return;
+    }
+
+    holder.innerHTML = items.map((item) => {
+      const name = giftName(item);
+      const rarity = item.rarity != null
+        ? `${item.rarity}% редкости`
+        : "";
+
+      if (currentTab === "backdrops") {
+        let color = item.centerColor || item.color || item.hex || "#383249";
+
+        if (!/^#?[0-9a-f]{3,8}$/i.test(color)) {
+          color = "#383249";
+        }
+
+        if (!color.startsWith("#")) color = "#" + color;
+
+        return `
+          <div class="variant-card">
+            <div style="height:62px;border-radius:12px;background:${color}"></div>
+            <div class="variant-name">${escapeHTML(name)}</div>
+            <div class="variant-rarity">${escapeHTML(rarity)}</div>
+          </div>`;
+      }
+
+      const endpoint = currentTab === "models" ? "model" : "symbol";
+      const imageURL =
+        `${API}/${endpoint}/${encodeURIComponent(giftName(currentGift))}/${encodeURIComponent(name)}.png?size=128`;
+
+      return `
+        <div class="variant-card">
+          <img loading="lazy" src="${escapeHTML(imageURL)}" alt="${escapeHTML(name)}">
+          <div class="variant-name">${escapeHTML(name)}</div>
+          <div class="variant-rarity">${escapeHTML(rarity)}</div>
+        </div>`;
+    }).join("");
+  }
+
+  function requestForm(gift) {
+    return `
+      <form class="request-form" id="rent-form">
+        <h3>Заявка на аренду</h3>
+        <p>Менеджер должен подтвердить наличие и условия аренды.</p>
+
+        <div class="form-group">
+          <label for="contact">Твой Telegram @username</label>
+          <input id="contact" required maxlength="80" placeholder="@username">
+        </div>
+
+        <div class="form-group">
+          <label for="duration">Желаемый срок</label>
+          <select id="duration">
+            <option>1 день</option>
+            <option>3 дня</option>
+            <option>7 дней</option>
+            <option>30 дней</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="comment">Комментарий</label>
+          <textarea id="comment" maxlength="500" placeholder="Какая модель интересует?"></textarea>
+        </div>
+
+        <button class="primary-btn" type="submit">
+          Отправить заявку
+        </button>
+
+        <p class="disclaimer">
+          Отправка в бота работает только при настроенном обработчике Mini App.
+        </p>
+      </form>`;
+  }
+
+  function bindRequest(gift) {
+    $("#rent-form")?.addEventListener("submit", (event) => {
+      event.preventDefault();
+
+      const request = {
+        type: "rent_request",
+        gift: giftName(gift),
+        giftId: gift.id || gift.giftId || null,
+        contact: $("#contact").value.trim(),
+        duration: $("#duration").value,
+        comment: $("#comment").value.trim()
+      };
+
+      if (!request.contact) return;
+
+      if (tg?.sendData) {
+        tg.sendData(JSON.stringify(request));
+        tg.close();
+      } else {
+        const message =
+          `Заявка на аренду\n` +
+          `Подарок: ${request.gift}\n` +
+          `Контакт: ${request.contact}\n` +
+          `Срок: ${request.duration}\n` +
+          `Комментарий: ${request.comment || "—"}`;
+
+        content.insertAdjacentHTML(
+          "beforeend",
+          `<div class="notice">${escapeHTML(message).replace(/\n/g, "<br>")}</div>`
+        );
+      }
+    });
+  }
+
+  async function openGift(gift) {
+    currentGift = gift;
+    currentTab = "models";
+
+    modal.classList.remove("hidden");
+    document.body.style.overflow = "hidden";
+
+    content.innerHTML = `
+      <h2>${escapeHTML(giftName(gift))}</h2>
+      <div class="loading">
+        <div class="spinner"></div>
+        <p>Загружаем информацию…</p>
+      </div>`;
+
+    try {
+      const details = await loadDetails(gift);
+
+      content.innerHTML = `
+        <div class="detail-head">
+          <div class="detail-art">
+            <img src="${escapeHTML(giftImage(gift))}" alt="">
+          </div>
+          <div>
+            <h2>${escapeHTML(giftName(gift))}</h2>
+            <p>Информация о подарке</p>
+            <div class="detail-badges">
+              <span class="detail-badge">${listFrom(details, "models").length} моделей</span>
+              <span class="detail-badge">${listFrom(details, "backdrops").length} фонов</span>
+              <span class="detail-badge">${listFrom(details, "symbols").length} узоров</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="tabs">
+          <button class="tab active" data-tab="models">Модели</button>
+          <button class="tab" data-tab="backdrops">Фоны</button>
+          <button class="tab" data-tab="symbols">Узоры</button>
+        </div>
+
+        <div id="variants" class="variant-grid"></div>
+
+        ${requestForm(gift)}
+
+        <p class="disclaimer">
+          Данные каталога предоставляются @GiftChangesAPI.
+          Наличие подарка для аренды должен подтвердить менеджер.
+        </p>`;
+
+      renderVariants(details);
+
+      content.querySelectorAll("[data-tab]").forEach((button) => {
+        button.addEventListener("click", () => {
+          currentTab = button.dataset.tab;
+
+          content.querySelectorAll("[data-tab]").forEach((tab) => {
+            tab.classList.toggle("active", tab === button);
+          });
+
+          renderVariants(details);
+        });
+      });
+
+      bindRequest(gift);
+    } catch (error) {
+      console.error("Ошибка подробностей подарка:", error);
+
+      content.innerHTML = `
+        <h2>${escapeHTML(giftName(gift))}</h2>
+        <p>Не удалось загрузить подробности подарка. Попробуй ещё раз позже.</p>
+        <button class="primary-btn" id="retry-detail">Повторить</button>
+        ${requestForm(gift)}`;
+
+      $("#retry-detail").addEventListener("click", () => openGift(gift));
+      bindRequest(gift);
+    }
+  }
+
+  function closeModal() {
+    modal.classList.add("hidden");
+    document.body.style.overflow = "";
+  }
+
+  modal.addEventListener("click", (event) => {
+    if (event.target?.dataset?.close === "true") {
+      closeModal();
+    }
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeModal();
+  });
+
+  search.addEventListener("input", render);
+
+  $("#clear-search")?.addEventListener("click", () => {
+    search.value = "";
+    render();
+  });
+
+  document.querySelectorAll(".filter").forEach((button) => {
+    button.addEventListener("click", () => {
+      filter = button.dataset.filter;
+
+      document.querySelectorAll(".filter").forEach((item) => {
+        item.classList.toggle("active", item === button);
+      });
+
+      render();
+    });
+  });
+
+  loadGifts();
 })();
