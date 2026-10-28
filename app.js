@@ -17,7 +17,7 @@ async function getJSON(url) {
 
   for (const address of [
     url,
-    PROXY + encodeURIComponent(url)
+    PROXY + url
   ]) {
     try {
       const response = await fetch(address, {
