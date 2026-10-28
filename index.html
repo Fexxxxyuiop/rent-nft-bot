@@ -1,10 +1,115 @@
+
 <!doctype html>
-<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#080b14"><title>NFT RENT</title><link rel="stylesheet" href="style.css"><script src="https://telegram.org/js/telegram-web-app.js"></script></head>
-<body><div class="shell">
-<header><div class="logo">N<span>R</span></div><div><b>NFT RENT</b><small>COLLECT • RENT • ENJOY</small></div><span class="profile" id="profile">◉</span></header>
-<section class="hero"><div class="hero-copy"><small>DIGITAL COLLECTIBLES</small><h1>Твой доступ<br>к <em>эксклюзиву</em></h1><p>Выбирай коллекцию и отправляй заявку на аренду в пару касаний.</p><button id="browse">Открыть каталог ↘</button></div><div class="hero-art">✦<strong>🎁</strong><small>DIGITAL<br>RARITY</small></div></section>
-<div class="steps"><div><b>01</b><small>Выбери предмет</small></div><div><b>02</b><small>Укажи срок</small></div><div><b>03</b><small>Получи ответ</small></div></div>
-<section id="catalog"><div class="heading"><div><small>DISCOVER</small><h2>Каталог</h2></div><span class="pill">● Заявки вручную</span></div><input id="search" placeholder="⌕  Поиск по каталогу"><div class="tabs" id="tabs"><button class="active" data-cat="all">Все</button><button data-cat="gift">🎁 Подарки</button><button data-cat="username">👤 Юзернеймы</button><button data-cat="number">📱 +888</button></div><p class="notice">Демонстрационные позиции. Наличие и актуальную цену подтвердит менеджер.</p><div class="grid" id="grid"></div><p id="empty" class="empty hidden">Ничего не найдено.</p></section>
-<section class="how"><small>ПРОСТОЙ ПРОЦЕСС</small><h2>Как это работает</h2><p>01　<b>Выбери предмет</b><br><span>Открой карточку и посмотри условия.</span></p><p>02　<b>Оставь заявку</b><br><span>Укажи срок и контакт.</span></p><p>03　<b>Согласуй аренду</b><br><span>Менеджер подтвердит наличие и цену.</span></p></section>
-<nav><button data-nav="home">⌂<small>Главная</small></button><button data-nav="catalog">▦<small>Каталог</small></button><button id="myrequest">≡<small>Заявка</small></button></nav></div>
-<div id="backdrop" class="backdrop hidden"><section class="modal"><button id="close" class="close">×</button><div id="modalart" class="modal-art"></div><div class="modal-content"><small id="type"></small><h2 id="title"></h2><p id="description"></p><div id="details"></div><label>Срок аренды</label><select id="duration"><option>1 день</option><option>3 дня</option><option>7 дней</option><option>30 дней</option></select><label>Твой Telegram / контакт</label><input id="contact" maxlength="80" placeholder="@username или контакт"><label>Комментарий <span>(необязательно)</span></label><textarea id="comment" maxlength="300" placeholder="Например, интересует конкретный фон"></textarea><button id="submit" class="submit">Отправить заявку ↗</button><p class="fine">Заявка не означает подтверждение аренды. Не отправляй пароли и коды Telegram.</p></div></section></div><div id="toast" class="toast hidden"></div><script src="app.js"></script></body></html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#101018">
+  <title>NFT RENT — Telegram Gifts</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+
+    <header class="topbar">
+      <div class="brand-mark">NR</div>
+      <div>
+        <div class="brand-title">NFT RENT</div>
+        <div class="brand-subtitle">TELEGRAM COLLECTIBLES</div>
+      </div>
+      <div class="live-pill">
+        <span></span> LIVE CATALOG
+      </div>
+    </header>
+
+    <section class="hero">
+      <div class="hero-kicker">COLLECT • EXPLORE • RENT</div>
+      <h1>
+        Найди свой<br>
+        <span>коллекционный подарок</span>
+      </h1>
+      <p>
+        Каталог подарков Telegram и их моделей.
+        Отправь заявку менеджеру, чтобы уточнить
+        доступность и условия аренды.
+      </p>
+
+      <div class="hero-stats">
+        <div>
+          <strong id="gift-count">—</strong>
+          <small>подарков в каталоге</small>
+        </div>
+        <div>
+          <strong>LIVE</strong>
+          <small>данные каталога</small>
+        </div>
+      </div>
+    </section>
+
+    <div class="search-wrap">
+      <span class="search-icon">⌕</span>
+      <input
+        id="search"
+        type="search"
+        placeholder="Поиск подарка..."
+        autocomplete="off"
+      >
+      <button id="clear-search">×</button>
+    </div>
+
+    <nav class="filters">
+      <button class="filter active" data-filter="all">Все</button>
+      <button class="filter" data-filter="upgradable">Коллекционные</button>
+      <button class="filter" data-filter="limited">Лимитированные</button>
+    </nav>
+
+    <div class="section-heading">
+      <div>
+        <div class="eyebrow">EXPLORE</div>
+        <h2>Каталог подарков</h2>
+      </div>
+      <span id="status" class="status">Загрузка…</span>
+    </div>
+
+    <div id="error-banner" class="notice hidden"></div>
+
+    <main id="catalog" class="catalog">
+      <div class="loading">
+        <div class="spinner"></div>
+        <p>Загружаем каталог Telegram Gifts…</p>
+      </div>
+    </main>
+
+    <footer>
+      <div class="footer-brand">
+        NFT RENT <span>•</span> TELEGRAM
+      </div>
+      <p>
+        Каталог и изображения предоставляются API проекта
+        <a
+          href="https://t.me/GiftChangesAPI"
+          target="_blank"
+          rel="noreferrer"
+        >@GiftChangesAPI</a>.
+      </p>
+      <p class="footer-note">
+        Наличие подарка, цена и срок аренды подтверждаются
+        менеджером. Карточки каталога не означают, что подарок
+        доступен для аренды.
+      </p>
+    </footer>
+
+  </div>
+
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-backdrop" data-close="true"></div>
+    <section class="modal-panel">
+      <button class="modal-close" data-close="true">×</button>
+      <div id="modal-content"></div>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
