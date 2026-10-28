@@ -1,6 +1,6 @@
 
 const API = "https://api.changes.tg";
-const PROXY = "https://api.allorigins.win/raw?url=";
+const PROXY = "https://proxy.cors.dev/";
 
 const $ = (s) => document.querySelector(s);
 let gifts = [];
